@@ -4,7 +4,7 @@ from dataclasses import replace
 import pytest
 
 from b3desk.backtest import Costs, run
-from b3desk.data import load
+from b3desk.data import News, load
 from b3desk.research import snapshot
 
 
@@ -32,12 +32,19 @@ def test_future_prices_filings_news_do_not_change_past():
         filings=data.filings
         + (replace(data.filings[0], available_on=data.candles[cut].date, net_income=-1e9),),
     )
+    changed = replace(
+        changed,
+        news=(
+            *changed.news,
+            News(data.candles[cut].date, "loss risk queda risco", "future synthetic headline"),
+        ),
+    )
     old, new = run(data), run(changed)
     assert old.equity[: cut - 30] == new.equity[: cut - 30]
     assert snapshot(data, cut - 1) == snapshot(changed, cut - 1)
 
 
-def test_flat_prices_lose_only_costs_and_no_fee_when_no_order():
+def test_zero_allocation_never_places_orders_or_charges_fees():
     data = load()
     # A deterministic uptrend creates a buy; zero risk allocation creates no trades.
     result = run(data, max_weight=0)

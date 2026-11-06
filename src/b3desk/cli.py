@@ -88,6 +88,8 @@ def execute(args, console: Console):
     report = {
         "disclaimer": "Research only. Not investment advice. Não é recomendação de investimento.",
         "dataset": dataset.description,
+        "inputs": asdict(dataset),
+        "parameters": {"max_weight": args.max_weight, "rebalance": args.rebalance},
         "snapshot": asdict(evidence),
         "backtest": asdict(result),
         "metrics": result.metrics,

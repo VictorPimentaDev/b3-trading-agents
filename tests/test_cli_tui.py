@@ -11,6 +11,8 @@ def test_cli_produces_chart_and_auditable_report(tmp_path):
     assert main(["demo", "--out", str(tmp_path)]) == 0
     report = json.loads((tmp_path / "report.json").read_text())
     assert report["snapshot"]["synthetic"] is True
+    assert len(report["inputs"]["candles"]) == 220
+    assert report["parameters"] == {"max_weight": 0.5, "rebalance": 5}
     assert report["narration_provider"] == "offline"
     assert (tmp_path / "equity.png").read_bytes().startswith(b"\x89PNG")
     assert main(["demo", "--cash", "-1"]) == 2
