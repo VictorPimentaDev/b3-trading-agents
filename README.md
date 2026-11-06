@@ -137,8 +137,9 @@ this importer. Curated news can be added to the dataset's `news` array as
 This synthetic run underperforms its reference. That is fine: the example demonstrates accounting,
 causality and failure boundaries, not “AI alpha.” Fees, fixed rules and initial cash are visible.
 IBOV is a frictionless reference, not an investable, cost-matched ETF. Final holdings are marked but
-not liquidated. **Results are pre-tax**: there is no IR computation, CDI on idle cash, explicit dividend
-ledger, order-book liquidity or production execution. Adjusted prices and revised filings can carry
+not liquidated. **Results are pre-tax**; an [optional Python-only IR estimate](docs/METHODOLOGY.md#optional-simplified-brazilian-ir-scenario)
+is separate and is not tax compliance. There is no CDI on idle cash, explicit dividend ledger,
+order-book liquidity or production execution. Adjusted prices and revised filings can carry
 hindsight bias even when the algorithm itself only looks backward.
 
 Read the [full methodology](docs/METHODOLOGY.md) for equations, timing, B3 cost assumptions, source dates

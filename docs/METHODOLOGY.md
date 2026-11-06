@@ -59,15 +59,80 @@ and an additional 0.2 bps trading fee for opening/closing auctions when checked 
 fills are modeled at the open, the default is 3.2 bps. This is not a full B3 invoice engine: verify the
 current tier, instrument, auction rules and broker schedule yourself. [Official B3 fee table](https://www.b3.com.br/pt_br/produtos-e-servicos/tarifas/listados-a-vista-e-derivativos/renda-variavel/tarifas-de-acoes-e-fundos-de-investimento/).
 
-**All results are pre-tax.** There is no simplified income-tax deduction disguised as a complete IR
-calculation. Monthly exemptions, loss carryforwards, withholding, day-trade distinctions and other
-holdings are not modeled. [Receita Federal: net gains](https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/pagamento/renda-variavel/bolsa-de-valores-1/ganho-liquido).
+**The backtest, CLI/TUI reports, equity curves and benchmark remain pre-tax.** The optional
+Python-only IR scenario below produces a separate estimate; it never deducts from the backtest.
 
 Open positions are not liquidated at the end, so closing fees/taxes are absent. Cash earns zero; CDI
 opportunity cost matters in Brazil. There is no liquidity/market-impact/partial-fill model, bid/ask book,
 corporate-action ledger or investor-specific tax accounting. Imported adjusted OHLC approximates a
 reinvested price series and is not a literal historical share/cash ledger. It can introduce bias around
 corporate actions. A production execution simulator needs raw prices and explicit corporate actions.
+
+### Optional simplified Brazilian IR scenario
+
+**Estimativa didática de IR, não apuração fiscal. Não é recomendação de investimento.**
+`b3desk.taxes.estimate_simplified_ir(result)` explicitly opts into a monthly paper estimate.
+No CLI flag or automatic tax deduction is enabled. It returns `SimplifiedIR`, including a warning
+label, monthly rows and `estimated_ir_brl` in BRL (`Decimal`). Always retain the label when displaying
+or exporting it. The original `Result` and its pre-tax metrics remain unchanged.
+
+```python
+from b3desk.backtest import run
+from b3desk.data import load
+from b3desk.taxes import estimate_simplified_ir
+
+result = run(load())  # Existing synthetic, pre-tax simulation.
+estimate = estimate_simplified_ir(result)  # Explicit opt-in; no network calls.
+print(estimate.label)
+for month in estimate.months:
+    print(month)
+print("Estimated IR (BRL):", estimate.estimated_ir_brl)
+```
+
+Jurisdiction/scenario: a Brazilian resident individual (PF), ordinary long-only cash-equity trades
+in one stock, only this simulation's operations, zero starting holdings and zero opening tax losses.
+This is not a rule for ETFs, FIIs, BDRs, options, shorts, day trades, legal entities or nonresidents.
+The `Result` does not identify asset class or tax residence: the caller must establish these
+assumptions. Use only fills produced by `backtest.run()`; this function is not a broker-ledger parser.
+
+Policy reviewed **2026-11-06**, using Receita Federal's pages on
+[rates and deductible costs](https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/pagamento/renda-variavel/bolsa-de-valores-1/bolsa-de-valores),
+[exemptions](https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/pagamento/renda-variavel/bolsa-de-valores-1/isencoes) and
+[loss compensation](https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/pagamento/renda-variavel/bolsa-de-valores-1/compensacoes).
+The same fixed assumptions apply to every simulated date; there is no historical law/version engine
+or guarantee of applicability before or after that review date. Verify rules for the actual period.
+
+The deterministic calculation is:
+
+1. Group sales by execution calendar month (`YYYY-MM`). Sum gross executed `shares × price` before
+   selling fees; buys do not count toward the sales limit. Sum `Trade.realized_pnl`, which already
+   includes average acquisition cost, buy/sell fees and slippage through fill prices. Do not subtract
+   those costs again. Months without sales have no row and do not consume accumulated losses.
+2. Convert the existing float amounts through their decimal strings, sum at decimal precision, and
+   round monthly sales and P&L to cents with `ROUND_HALF_UP`. This is a reproducible model convention,
+   not a claim to reproduce broker notes or statutory rounding. It cannot restore precision lost in
+   the underlying float simulation.
+3. A negative monthly P&L adds to the carried loss, including in months with sales up to R$20,000.
+   Positive P&L is exempt when monthly gross sales are **at most R$20,000**, preserving prior losses.
+   Above that limit, deduct available carried losses from positive net P&L, then estimate **15% of
+   the remaining gain**, rounded to cents. The limit is not a deduction from gains. Carry unused
+   losses across months and years; subsequent losses never refund earlier estimated tax.
+
+For example, R$21,000 of monthly sales and R$1,500 of realized net gain produce R$225 estimated IR
+with no prior losses. With R$1,000 carried loss, the estimate is R$75. At exactly R$20,000 of sales,
+the same positive gain is exempt in this scenario. Tests cover the threshold to the cent, monthly
+netting, loss carry across a year, exempt gains, cost basis and unchanged pre-tax results.
+
+**Every row is provisional**, including the last month, which can be incomplete. The estimate
+assumes no sales elsewhere in the same month. A stock-only run cannot establish an investor-wide
+exemption or loss balance. There is no IRRF credit, payment calendar, minimum DARF accumulation,
+interest/penalty, dividend/JCP treatment, corporate-action basis adjustment, or tax filing output.
+Unrealized gains and terminal liquidation are excluded. Taxes do not reduce trading cash or future
+position sizes; subtracting the total from terminal equity would not recreate an after-tax strategy.
+The IBOV reference remains untaxed and nontradable, so it is not a like-for-like after-tax benchmark.
+Synthetic inputs and adjusted market prices make this unsuitable for real tax reporting even when
+the simplified arithmetic matches the stated scenario. Full tax accounting is deliberately deferred
+until raw executions, corporate actions and an investor-wide ledger exist.
 
 ## Benchmark and metrics
 
@@ -96,3 +161,30 @@ The importer reads `3.01` revenue, `3.11` net income, and `2.03` equity, `ÚLTIM
 rejected; the application does not silently substitute other measures.
 [yfinance](https://ranaroussi.github.io/yfinance/) is an unofficial Yahoo Finance client; review the
 underlying data terms before using or redistributing downloads.
+
+### Point-in-time provenance audit (2026-11-06)
+
+**Status: causal filtering of supplied dates, not verified historical availability.** The CVM
+[DFP catalog](https://dados.cvm.gov.br/dataset/cia_aberta-doc-dfp) says archives are updated weekly
+with resubmissions. Today's archive can therefore contain information unavailable at a historical
+signal date. A reporting-period end, archive filename or download date cannot establish publication.
+
+| Input/path | What the current code establishes | What it cannot establish |
+| --- | --- | --- |
+| `cvm_filing()` | Consolidated accounts, issuer code, fiscal period, currency/scale; duplicate requested accounts rejected | `available_on` is supplied by the caller, not derived from a CVM receipt. No receipt ID, `VERSAO`, archive hash or download timestamp is retained; unique rows alone do not prove DRE/BPP version consistency. |
+| `Filing` / `snapshot()` | Availability cannot precede period end; only `available_on < signal_date` is eligible. Latest eligible period, then availability, wins. | A later revision backdated by the caller still leaks hindsight. Same-day exclusion does not authenticate publication. A newer availability date for an older period does not override a newer fiscal period. |
+| `News` / `snapshot()` | Nonempty headline/source and a calendar date; prior-day through 30-calendar-day window | No crawler, original publication timestamp/time zone, correction history, ingestion timestamp or content hash. A source string is not verified evidence. Snapshot headlines omit per-item sources/dates; retain the report's `inputs.news` for inspection. News does not drive allocation. |
+| JSON report / fixtures | `inputs` retains supplied filings/news and their source strings/dates. Fixtures are explicitly synthetic. | Serialization preserves claims, not proof of them; the fixture is no validation against real historical CVM/news. |
+
+For a defensible historical study, retain the original document/headline version, canonical URL,
+issuer and receipt/version identifiers, original publication and correction timestamps with time
+zone, retrieval time and a content hash. Match the DRE/BPP to that same submission, then use the
+actual availability of that version (and, for a replay of a collector, its ingestion time). Retain
+each revision separately instead of overwriting old evidence. These are requirements for a future
+data pipeline, **not fields currently collected or verified by this importer**. If the historical
+version or timing cannot be evidenced, label the study retrospective and do not claim point-in-time
+outperformance. No live CVM archive or news feed was validated in this audit.
+
+Regression tests cover same-day/future exclusions, later availability of a same-period revision,
+the news window boundary, source/date round trips and invariance of past results to future inputs.
+They establish software behavior conditional on the supplied dates, not the truth of those dates.
