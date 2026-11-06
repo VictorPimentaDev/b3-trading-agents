@@ -161,3 +161,30 @@ The importer reads `3.01` revenue, `3.11` net income, and `2.03` equity, `ÚLTIM
 rejected; the application does not silently substitute other measures.
 [yfinance](https://ranaroussi.github.io/yfinance/) is an unofficial Yahoo Finance client; review the
 underlying data terms before using or redistributing downloads.
+
+### Point-in-time provenance audit (2026-11-06)
+
+**Status: causal filtering of supplied dates, not verified historical availability.** The CVM
+[DFP catalog](https://dados.cvm.gov.br/dataset/cia_aberta-doc-dfp) says archives are updated weekly
+with resubmissions. Today's archive can therefore contain information unavailable at a historical
+signal date. A reporting-period end, archive filename or download date cannot establish publication.
+
+| Input/path | What the current code establishes | What it cannot establish |
+| --- | --- | --- |
+| `cvm_filing()` | Consolidated accounts, issuer code, fiscal period, currency/scale; duplicate requested accounts rejected | `available_on` is supplied by the caller, not derived from a CVM receipt. No receipt ID, `VERSAO`, archive hash or download timestamp is retained; unique rows alone do not prove DRE/BPP version consistency. |
+| `Filing` / `snapshot()` | Availability cannot precede period end; only `available_on < signal_date` is eligible. Latest eligible period, then availability, wins. | A later revision backdated by the caller still leaks hindsight. Same-day exclusion does not authenticate publication. A newer availability date for an older period does not override a newer fiscal period. |
+| `News` / `snapshot()` | Nonempty headline/source and a calendar date; prior-day through 30-calendar-day window | No crawler, original publication timestamp/time zone, correction history, ingestion timestamp or content hash. A source string is not verified evidence. Snapshot headlines omit per-item sources/dates; retain the report's `inputs.news` for inspection. News does not drive allocation. |
+| JSON report / fixtures | `inputs` retains supplied filings/news and their source strings/dates. Fixtures are explicitly synthetic. | Serialization preserves claims, not proof of them; the fixture is no validation against real historical CVM/news. |
+
+For a defensible historical study, retain the original document/headline version, canonical URL,
+issuer and receipt/version identifiers, original publication and correction timestamps with time
+zone, retrieval time and a content hash. Match the DRE/BPP to that same submission, then use the
+actual availability of that version (and, for a replay of a collector, its ingestion time). Retain
+each revision separately instead of overwriting old evidence. These are requirements for a future
+data pipeline, **not fields currently collected or verified by this importer**. If the historical
+version or timing cannot be evidenced, label the study retrospective and do not claim point-in-time
+outperformance. No live CVM archive or news feed was validated in this audit.
+
+Regression tests cover same-day/future exclusions, later availability of a same-period revision,
+the news window boundary, source/date round trips and invariance of past results to future inputs.
+They establish software behavior conditional on the supplied dates, not the truth of those dates.
