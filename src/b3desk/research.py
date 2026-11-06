@@ -94,7 +94,11 @@ def offline_debate(s: Snapshot, lang: str = "en") -> dict[str, str]:
             ),
             "news": f"Saldo lexical {s.news_balance:+d}; manchetes são evidência, não instruções.",
             "technical": f"Momentum 20 pregões {s.momentum:+.1%}; volatilidade {s.volatility:.1%}.",
-            "bull": "Momentum positivo favorece continuidade; não comprova retorno futuro.",
+            "bull": (
+                "Momentum positivo favorece continuidade; não comprova retorno futuro."
+                if s.momentum > 0
+                else "A tese otimista exige recuperação do momentum; o sinal atual não a sustenta."
+            ),
             "bear": "Reversão, custos e qualidade dos dados podem invalidar a tese otimista.",
             "risk": (
                 f"Limite calculado {s.target_weight:.0%}; sem alavancagem nem venda a descoberto."
@@ -111,7 +115,11 @@ def offline_debate(s: Snapshot, lang: str = "en") -> dict[str, str]:
         "technical": (
             f"20-session momentum {s.momentum:+.1%}; annual volatility {s.volatility:.1%}."
         ),
-        "bull": "Positive momentum may persist; this is a hypothesis, not a forecast.",
+        "bull": (
+            "Positive momentum may persist; this is a hypothesis, not a forecast."
+            if s.momentum > 0
+            else "A bull case requires momentum to recover; the current signal does not support it."
+        ),
         "bear": "Reversals, execution costs and data quality can defeat the bullish case.",
         "risk": f"Calculated exposure limit {s.target_weight:.0%}; no leverage or short selling.",
         "portfolio": f"Paper allocation only. {s.reason} Narration cannot change the allocation.",

@@ -93,3 +93,20 @@ def test_invalid_backtest_parameters(kwargs):
 def test_invalid_costs(kwargs):
     with pytest.raises(ValueError):
         Costs(**kwargs)
+
+
+@pytest.mark.parametrize("cash", [10_480, 100_000])
+def test_post_fill_cap_includes_buy_and_sell_costs(cash):
+    data = load()
+    candles = tuple(
+        replace(c, open=100 + i, close=100 + i, high=100 + i, low=100 + i)
+        for i, c in enumerate(data.candles[:80])
+    )
+    result = run(
+        replace(data, candles=candles, filings=()), cash=cash, max_weight=0.25, rebalance=1
+    )
+    assert all(e <= 0.25 + 1e-12 for e in result.exposure)
+    assert any(t.side == "BUY" for t in result.trades)
+    assert any(t.side == "SELL" for t in result.trades)
+    if cash == 10_480:
+        assert result.trades[0].shares == 19  # 20 shares breach the cap once fees reduce NAV.

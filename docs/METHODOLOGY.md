@@ -40,8 +40,14 @@ are not understood. External narrators can discuss the headlines but cannot chan
 
 ## Execution, costs and accounting
 
-At a rebalance, target shares = floor(open-marked portfolio value × target weight / open). A buy is
-reduced to an affordable whole number of shares after estimated fees. Buy fills use open × (1 + slippage),
+At a rebalance, the first target is based on the open-marked portfolio. Order size is then solved
+against **NAV after fees and slippage**, so the target weight is not exceeded by the transaction
+itself. Buys round down and sells round up to whole shares; buys also respect available cash.
+For a buy of q shares, the cap is `(existing + q) × open ≤ weight ×
+(NAV − brokerage − q × (fill − open + exchange_rate × fill))`. For a sale, use
+`(existing − q) × open ≤ weight × (NAV − brokerage − q ×
+(open − fill + exchange_rate × fill))`. These caps use the unimpacted opening mark; prices can
+subsequently move exposure above target. Buy fills use open × (1 + slippage),
 sells use open × (1 − slippage). Brokerage is charged once per nonzero order and exchange fees apply to
 executed notional. Positions are marked to that day's close. Cost basis is weighted-average acquisition
 cost including buy fees; realized P&L subtracts sell fees. Slippage is included in the fill and is also

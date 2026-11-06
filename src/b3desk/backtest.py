@@ -44,6 +44,8 @@ class Result:
     trades: tuple[Trade, ...]
     initial_cash: float
     costs: Costs
+    max_weight: float
+    rebalance: int
 
     @property
     def metrics(self):
@@ -101,14 +103,35 @@ def run(
         candle = dataset.candles[i]
         if (i - 31) % rebalance == 0:
             weight = snapshot(dataset, i - 1, max_weight).target_weight
-            target = math.floor((cash + shares * candle.open) * weight / candle.open)
+            nav = cash + shares * candle.open
+            target = math.floor(nav * weight / candle.open)
             delta = target - shares
             price = candle.open * (1 + (1 if delta > 0 else -1) * costs.slippage_bps / 10000)
             if delta > 0:
+                drag = price - candle.open + price * costs.exchange_bps / 10000
+                # Solve the exposure cap against NAV after this order's fees and slippage.
+                delta = max(
+                    0,
+                    math.floor(
+                        (weight * (nav - costs.brokerage) - shares * candle.open)
+                        / (candle.open + weight * drag)
+                    ),
+                )
                 affordable = math.floor(
                     max(0, cash - costs.brokerage) / (price * (1 + costs.exchange_bps / 10000))
                 )
                 delta = min(delta, affordable)
+            elif delta < 0:
+                drag = candle.open - price + price * costs.exchange_bps / 10000
+                denominator = candle.open - weight * drag
+                if denominator <= 0:
+                    raise ValueError("Trading costs make the exposure target infeasible")
+                delta = -min(
+                    shares,
+                    math.ceil(
+                        (shares * candle.open - weight * (nav - costs.brokerage)) / denominator
+                    ),
+                )
             if delta:
                 notional = abs(delta) * price
                 fee = costs.fee(notional)
@@ -145,4 +168,6 @@ def run(
         tuple(trades),
         initial,
         costs,
+        max_weight,
+        rebalance,
     )

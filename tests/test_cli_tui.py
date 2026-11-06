@@ -30,3 +30,24 @@ async def test_tui_keyboard_and_ledger():
         await pilot.click("#--content-tab-ledger")
         await pilot.pause()
         assert app.query_one("#trades", DataTable).display
+
+
+async def test_tui_method_reflects_parameters_and_source():
+    from dataclasses import replace
+
+    from textual.widgets import Static
+
+    from b3desk.backtest import Costs
+
+    data = replace(load(), synthetic=False)
+    app = Desk(
+        snapshot(data, 100, 0.2), run(data, costs=Costs(1, 2, 3), max_weight=0.2, rebalance=1)
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        method = str(app.query_one("#method", Static).content)
+        assert "every 1 session" in method
+        assert "max weight 20%" in method
+        assert "R$1.00/order + 2 bps fees + 3 bps" in method
+        assert "Imported data:" in method
+        assert "Synthetic demo" not in method

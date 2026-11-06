@@ -44,3 +44,12 @@ def test_risk_vetoes():
 def test_noncanonical_date_cannot_bypass_point_in_time_gate():
     with pytest.raises(ValueError, match="YYYY-MM-DD"):
         replace(load().filings[0], available_on="20240301")
+
+
+def test_offline_bull_does_not_claim_positive_momentum_in_downtrend():
+    from b3desk.research import offline_debate
+
+    evidence = snapshot(load(), 30)
+    assert evidence.momentum < 0
+    assert "does not support" in offline_debate(evidence)["bull"]
+    assert "não a sustenta" in offline_debate(evidence, "pt")["bull"]

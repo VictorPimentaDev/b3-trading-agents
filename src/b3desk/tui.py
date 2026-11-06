@@ -55,12 +55,19 @@ class Desk(App):
                 yield Static(
                     "01  Signals use a trailing 31-session window.\n\n"
                     "02  Filings/news need availability strictly before signal day.\n\n"
-                    "03  Rebalance every 5 sessions at next open; integer shares, long-only.\n\n"
-                    "04  Defaults: R$4.90/order + 3.2 bps fees + 5 bps one-way slippage.\n\n"
+                    f"03  Rebalance every {self.result.rebalance} session(s) at next open; "
+                    f"max weight {self.result.max_weight:.0%}; integer shares, long-only.\n\n"
+                    f"04  R${self.result.costs.brokerage:.2f}/order + "
+                    f"{self.result.costs.exchange_bps:g} bps fees + "
+                    f"{self.result.costs.slippage_bps:g} bps one-way slippage.\n\n"
                     "05  IBOV is a frictionless reference, not an executable portfolio.\n\n"
                     "06  Pre-tax; no dividend ledger, lending, interest or liquidation.\n\n"
                     "07  LLM text cannot place orders or change any calculation.\n\n"
-                    "Synthetic demo is a software test, not evidence of investment skill.",
+                    + (
+                        "Synthetic demo is a software test, not evidence of investment skill."
+                        if self.snapshot.synthetic
+                        else "Imported data: verify revisions and publication dates. Paper only."
+                    ),
                     id="method",
                 )
         yield Footer()
